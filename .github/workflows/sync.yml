@@ -1,0 +1,97 @@
+name: Sync Images from Google Drive
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"  # every 30 minutes
+
+jobs:
+  sync-images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            rclone \
+            exiftool \
+            webp \
+            imagemagick \
+            libheif-examples \
+            file
+
+      - name: Configure rclone
+        run: |
+          echo "${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}" | base64 -d > gdrive.json
+          rclone config create gdrive drive scope drive.readonly service_account_file gdrive.json
+
+      # 4️⃣ Sync images from Drive to temp dir
+      - name: Pull images from Google Drive
+        run: |
+          rm -rf raw-images
+          mkdir -p raw-images
+          
+          # Map each Drive dir to GitHub dir
+          declare -A dirs=(
+            ["event"]="001"
+            ["street"]="002"
+            ["travel_and_landscape"]="003"
+            ["commercial"]="004"
+            ["portrait_and_lifestyle"]="005"
+          )
+
+          for drive_dir in "${!dirs[@]}"; do
+            local_dir="raw-images/${dirs[$drive_dir]}"
+            mkdir -p "$local_dir"
+            rclone sync "gdrive:$drive_dir" "$local_dir" --update
+          done
+
+      - name: Convert images & extract EXIF
+        run: |
+          for dir in 001 002 003 004 005; do
+            mkdir -p "$dir"
+          done
+
+          find raw-images -type f | while read img; do
+            mime=$(file --mime-type -b "$img")
+            [[ "$mime" != image/* ]] && continue
+
+            # Determine target dir
+            rel="${img#raw-images/}"
+            target_dir="${rel%%/*}"  # 001, 002, etc.
+            base="${rel##*/}"
+            name="${base%.*}"
+            out="${target_dir}/${name}.webp"
+
+            mkdir -p "$(dirname "$out")"
+
+            echo "Processing $img → $out"
+
+            # Extract EXIF
+            exiftool -json "$img" > "${target_dir}/${name}.json"
+
+            # Convert HEIC separately
+            if [[ "$mime" == "image/heic" ]]; then
+              tmp="/tmp/${name}.jpg"
+              heif-convert "$img" "$tmp"
+              cwebp "$tmp" -q 85 -metadata all -o "$out"
+              rm "$tmp"
+            else
+              cwebp "$img" -q 85 -metadata all -o "$out"
+            fi
+          done
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add 001 002 003 004 005
+          if ! git diff --cached --quiet; then
+            git commit -m "sync: update images from Google Drive"
+            git push
+          else
+            echo "No changes detected. Skipping commit."
