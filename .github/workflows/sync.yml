@@ -47,7 +47,7 @@ jobs:
           for drive_dir in "${!dirs[@]}"; do
             local_dir="raw-images/${dirs[$drive_dir]}"
             mkdir -p "$local_dir"
-            rclone sync "gdrive:$drive_dir" "$local_dir" --update
+            rclone sync "gdrive:portfolio/$drive_dir" "raw-images/$local_dir" --update
           done
 
       - name: Convert images & extract EXIF
