@@ -1,5 +1,8 @@
 name: Sync Images from Google Drive
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   schedule:
