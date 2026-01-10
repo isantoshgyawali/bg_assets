@@ -16,7 +16,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt update
-          sudo apt install -y rclone webp libheif-examples libheif1 file
+          sudo apt install -y rclone webp libheif-examples libheif1 file jq
 
       - name: Configure rclone
         run: |
@@ -38,6 +38,7 @@ jobs:
             ["commercial"]="004"
             ["portrait_and_lifestyle"]="005"
           )
+
           for drive_dir in "${!dirs[@]}"; do
             local_dir="raw-images/${dirs[$drive_dir]}"
             mkdir -p "$local_dir"
@@ -74,13 +75,26 @@ jobs:
             fi
           done
 
+      - name: Generate gallery.json files
+        run: |
+          for dir in 001 002 003 004 005; do
+            if ls "$dir"/*.webp 1> /dev/null 2>&1; then
+              ls "$dir"/*.webp \
+                | xargs -n 1 basename \
+                | jq -R . \
+                | jq -s '{ images: . }' \
+                > "$dir/gallery.json"
+              echo "Generated $dir/gallery.json"
+            fi
+          done
+
       - name: Commit and push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add 001 002 003 004 005
           if ! git diff --cached --quiet; then
-            git commit -m "sync: update WebP images from Google Drive [skip ci]"
+            git commit -m "sync: update images & gallery manifests from Drive [skip ci]"
             git push
           else
             echo "No changes detected. Skipping commit."
