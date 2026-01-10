@@ -27,7 +27,10 @@ jobs:
       - name: Configure rclone
         run: |
           echo "${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}" | base64 -d > gdrive.json
-          rclone config create gdrive drive scope drive.readonly service_account_file gdrive.json
+          rclone config create gdrive drive \
+            scope drive.readonly \
+            service_account_file gdrive.json \
+            shared_with_me true
 
       # 4️⃣ Sync images from Drive to temp dir
       - name: Pull images from Google Drive
