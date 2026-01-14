@@ -72,10 +72,10 @@ jobs:
             if [[ "$mime" == "image/heic" ]]; then
               tmp="/tmp/${name}.jpg"
               heif-convert "$img" "$tmp"
-              cwebp "$tmp" -q 85 -o "$out"
+              cwebp "$tmp" -q 85 -resize 1200 0 -o "$out"
               rm "$tmp"
             else
-              cwebp "$img" -q 85 -o "$out"
+              cwebp "$img" -q 85 -resize 1200 0 -o "$out"
             fi
           done
 
